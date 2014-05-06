@@ -1,0 +1,108 @@
+<h2>LEETCOIN Math Quiz</h2>
+<a href="https://github.com/leetcoin/">source code available</a><br>
+<br><br>
+<h3>The wager is 1000 Satoshi</h3>
+<br><br>
+
+<div id='player-authorize' style='display:none'>
+  Visit leetcoin to authorize this server.<br>
+  <div id='player-authorize-link'><a href='<%= game_link %>' target="new"><%= game_link %></a></div>
+</div>
+<div id='player-authorized' style='display:none'>
+  You are authorized and ready to play.
+</div>
+<br><br>
+
+<div id='other-player' style='display:none'>
+  Waiting for another player to join.<br>
+  <br><br>
+  Send your competition this link to play:<br>
+  <div id='game-link'><a href='<%= game_link %>'><%= game_link %></a></div>
+</div>
+<div id='you-won'>
+  You answered correctly first! You won this game!
+</div>
+<div id='you-lost'>
+  Your opponent answered correctly first. You lost this game.
+</div>
+<div id='question'>
+</div>
+<div id='answer'>
+</div>
+<div id='attempt'>
+  <input id='my-answer' type='text'></input>
+  <button onclick='submit()'>Submit</button>
+</div>
+<br><br>
+<a href="/logout">Log Out</a>
+
+<script src="/socket.io/socket.io.js"></script>
+<script type='text/javascript'>
+  function updateGame() {      
+    var display = {
+      'other-player': 'none',
+      'question': 'none',
+      'attempt': 'none',
+      'you-won': 'none',
+      'you-lost': 'none',
+      'player-authorize': 'block',
+      'player-authorized': 'none',
+    }; 
+
+    var game = state.game || {};
+    if (!game.player1 || !game.player2) {
+      display['other-player'] = 'block';
+      display['question'] = 'none';
+      display['answer'] = 'none';
+    } else if (game.winner == state.userId) {
+      display['you-won'] = 'block';
+    } else if (game.winner) {
+      display['you-lost'] = 'block';
+      display['answer'] = 'block';
+      var answer = document.getElementById('answer');
+      answer.innerHTML = 'The answer is ' + (+game.question.a + +game.question.b);
+    } else if (game.question) {
+      display['question'] = 'block';
+      display['attempt'] = 'block';    
+      var question = document.getElementById('question');
+      question.innerHTML = game.question.a + ' + ' + game.question.b + ' = ';
+    }
+
+    console.log(game)
+
+    if (isAuthorized()) {
+      display['player-authorize'] = 'none';
+      display['player-authorized'] = 'block';
+    }
+    
+    for (var label in display) {
+      document.getElementById(label).style.display = display[label];
+    }
+  };
+
+  function isAuthorized() {
+    var game = state.game || {};
+    return game.player1leetcoinKey == state.userId || game.player2leetcoinKey == state.userId;
+  };
+
+  function submit() {
+    var myAnswer = document.getElementById('my-answer').value;
+    socket.emit('answer', myAnswer)
+  }
+
+  var state = {
+    gameId: '<%= gameId %>',
+    userId: '<%= userId %>',
+    game: null
+  };
+  var socket = io.connect();
+  
+  socket.on('game', function(game) {
+    state.game = game;
+    updateGame();
+  });
+  
+  socket.emit('join', state.gameId);
+
+  updateGame();
+</script>
