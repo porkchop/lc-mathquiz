@@ -36,7 +36,7 @@ Server.prototype.toMedium = function() {
 
 // a leetcoin player
 function Player(params) {
-  this.key = params.key;
+  this.platformID = this.key = params.key;
   this.kills = params.kills;
   this.deaths = params.deaths;
   this.name = params.name;
