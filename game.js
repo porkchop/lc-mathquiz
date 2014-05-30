@@ -7,6 +7,9 @@ function Game(params) {
   this.question = null;
   this.winner = null;
 
+  this.player1PlayAgain = false;
+  this.player2PlayAgain = false;
+
   this.server_key = params.key
   this.server_api_key = params.apiKey
   this.server_secret = params.apiSecret
@@ -32,6 +35,8 @@ Game.prototype.wireSafe = function() {
     id: this.id,
     player1: this.player1 && this.player1.id,
     player2: this.player2 && this.player2.id,
+    player1PlayAgain: this.player1PlayAgain,
+    player2PlayAgain: this.player2PlayAgain,
     question: this.question,
     winner: this.winner,
     player1leetcoinKey: this.player1leetcoinKey,

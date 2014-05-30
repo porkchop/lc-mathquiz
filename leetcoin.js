@@ -149,7 +149,7 @@ var api = {
     });
   },
 
-  deactivatePlayer: function(game, platformid, rank, satoshi_balance, cb) {
+  deactivatePlayer: function(game, platformid, cb) {
     // send the player to the api server
 
     cb = cb || function(err) { if(err) console.error(err); };
@@ -161,9 +161,7 @@ var api = {
     var uri = "/api/deactivate_player"
 
     var params = {
-      platformid: platformid,
-      // rank: rank,
-      // satoshi_balance: satoshi_balance
+      platformid: platformid
     };
 
     callLeetcoin(uri, params, game.server_secret, game.server_api_key, function(error, response, body) {

@@ -147,6 +147,9 @@ function createOrLoadGame(req, res, next) {
       server.id = gameId;
       game = db.games.create(server);
       debug(server, game);
+
+      initRealTimeChannel(game.id);
+
       loaded();
     });
   }
@@ -175,7 +178,7 @@ function checkAuthzLeetcoin(req, res, next) {
       
       if(game.player1leetcoinKey && game.player2leetcoinKey && !game.question) game.generateQuestion();
       
-      io.sockets.in(game.id).emit('game', game.wireSafe());
+      io.of('/' + game.id).emit('game', game.wireSafe());
     });
   }
   check();
@@ -186,61 +189,73 @@ function checkAuthzLeetcoin(req, res, next) {
 
 
 // [BEGIN] Realtime updates
-io.sockets.on('connection', function(socket) {
-  var player = socket.handshake.user;
+function initRealTimeChannel(channelId) {
+  var channel = io.of('/' + channelId);
+  var game = db.games.get(channelId);
 
-  socket.on('join', function(gameId) {
-    var game = db.games.get(gameId);
-    if(!game) socket.emit('error', 'No game for gameId ' + gameId);
-    else socket.set('game', game, function() {
-      socket.join(gameId);
-      io.sockets.in(gameId).emit('game', game.wireSafe());
-    });
-  });
-  
-  socket.on('answer', function(answer) {
-    socket.get('game', function(err, game) {
-      if (err) {
-        socket.emit('error', err);
-      } else if (game) {
-        if(game.player1leetcoinKey
-            && game.player2leetcoinKey
-            && !game.winner
-            && (player.id == game.player1.id || player.id == game.player2.id)
-            && game.isCorrect(answer)) {
-          game.winner = player.id;
+  function removePlayer(playerKey) {
+    leetcoin.deactivatePlayer(game, game[playerKey].id);
+    game[playerKey] = null;
+    game[playerKey + 'leetcoinKey'] = null;
+    game[playerKey + 'PlayAgain'] = false;
+  }
 
-          var player_keys = [game.player1.id, game.player2.id];
-          var player_names = [game.player1.id, game.player2.id];
-          var weapons = ['Brain A', 'Brain B'];
+  channel.on('connection', function(socket) {
+    var player = socket.handshake.user;
 
-          var kills = [1,0];
-          var deaths = [0,1];
-          var ranks = [1601, 1599];
-          if(game.winner === game.player2.id) {
-            kills = [0,1];
-            deaths = [1,0];
-            ranks = [1599, 1601];
-          }
+    channel.emit('game', game.wireSafe());
+    
+    socket.on('answer', function(answer) {
+      if(game.player1leetcoinKey
+          && game.player2leetcoinKey
+          && !game.winner
+          && (player.id == game.player1.id || player.id == game.player2.id)
+          && game.isCorrect(answer)) {
+        game.winner = player.id;
 
-          leetcoin.setMatchResults(game, 'leetcoinmathquiz', player_keys, player_names, weapons, kills, deaths, ranks, function(err, res) {
-            if(err) console.error(err);
+        var player_keys = [game.player1.id, game.player2.id];
+        var player_names = [game.player1.id, game.player2.id];
+        var weapons = ['Brain A', 'Brain B'];
 
-            if(game.winner == game.player1.id) {
-              leetcoin.deactivatePlayer(game, game.player1.id, 1601, 1098);
-              leetcoin.deactivatePlayer(game, game.player2.id, 1599, 900);
-            }
-            else {
-              leetcoin.deactivatePlayer(game, game.player2.id, 1601, 1098);
-              leetcoin.deactivatePlayer(game, game.player1.id, 1599, 900);
-            }
-            io.sockets.in(game.id).emit('game', game.wireSafe());
-          });
+        var kills = [1,0];
+        var deaths = [0,1];
+        var ranks = [1601, 1599];
+        if(game.winner === game.player2.id) {
+          kills = [0,1];
+          deaths = [1,0];
+          ranks = [1599, 1601];
         }
-      } else {
-        socket.emit('error', 'No game object');
+
+        leetcoin.setMatchResults(game, 'leetcoinmathquiz', player_keys, player_names, weapons, kills, deaths, ranks, function(err, res) {
+          if(err) console.error(err);
+
+          channel.emit('game', game.wireSafe());
+        });
       }
     });
+
+    socket.on('unregister', function() {
+      if(game.winner || !(game.player1 && game.player2)) {
+        if(game.player1.id == player.id) removePlayer('player1');
+        else if(game.player2.id == player.id) removePlayer('player2');
+        channel.emit('game', game.wireSafe());
+      }
+    });
+
+    socket.on('playAgain', function() {
+      if(!game.winner) return;    // can't play again if the current round hasn't completed
+
+      if(game.player1.id == player.id) game.player1PlayAgain = true;
+      else if(game.player2.id == player.id) game.player2PlayAgain = true;
+
+      if(game.player1PlayAgain && game.player2PlayAgain) {
+        game.winner = null;
+        game.player1PlayAgain = game.player2PlayAgain = false;
+        game.generateQuestion();
+      }
+
+      channel.emit('game', game.wireSafe());
+    });
   });
-});
+}
 // [END] Realtime updates
